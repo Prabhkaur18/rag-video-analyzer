@@ -2,26 +2,19 @@ import os
 import re
 import asyncio
 import httpx
-from typing import Optional
 from youtube_transcript_api import YouTubeTranscriptApi
 import chromadb
 from chromadb.utils import embedding_functions
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 CHROMA_PATH = "./chroma_store"
 
-def get_chroma_client():
-    return chromadb.PersistentClient(path=CHROMA_PATH)
-
 def get_collection(session_id: str):
-    client = get_chroma_client()
-    openai_ef = embedding_functions.OpenAIEmbeddingFunction(
-        api_key=os.environ["OPENAI_API_KEY"],
-        model_name="text-embedding-3-small"
-    )
+    client = chromadb.PersistentClient(path=CHROMA_PATH)
+    ef = embedding_functions.DefaultEmbeddingFunction()
     return client.get_or_create_collection(
         name=f"session_{session_id}",
-        embedding_function=openai_ef,
+        embedding_function=ef,
         metadata={"hnsw:space": "cosine"}
     )
 
@@ -37,26 +30,53 @@ def extract_youtube_id(url: str) -> str:
     raise ValueError(f"Could not extract YouTube ID from: {url}")
 
 async def fetch_youtube_metadata(video_id: str) -> dict:
-    """Fetch YouTube metadata via oembed (no API key needed) + transcript."""
-    oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
-    async with httpx.AsyncClient(timeout=15) as client:
+    title = "Unknown Title"
+    author = "Unknown Creator"
+    views = 0
+    likes = 0
+    comments = 0
+    upload_date = "N/A"
+    duration = 0
+
+    # Try yt-dlp for full stats (views, likes, comments)
+    try:
+        import subprocess, json as _json
+        result = subprocess.run(
+            ["yt-dlp", "--dump-json", "--no-download", f"https://www.youtube.com/watch?v={video_id}"],
+            capture_output=True, text=True, timeout=45
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            info = _json.loads(result.stdout.strip().split('\n')[0])
+            title = info.get("title", title)
+            author = info.get("uploader", info.get("channel", author))
+            views = info.get("view_count") or 0
+            likes = info.get("like_count") or 0
+            comments = info.get("comment_count") or 0
+            upload_date = info.get("upload_date", "N/A")
+            duration = info.get("duration") or 0
+    except Exception as e:
+        print(f"yt-dlp YouTube error: {e}")
+        # Fallback to oembed for title/author
         try:
-            r = await client.get(oembed_url)
-            data = r.json()
-            title = data.get("title", "Unknown Title")
-            author = data.get("author_name", "Unknown Creator")
+            oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+            async with httpx.AsyncClient(timeout=15) as client:
+                r = await client.get(oembed_url)
+                data = r.json()
+                title = data.get("title", title)
+                author = data.get("author_name", author)
         except Exception:
-            title = "Unknown Title"
-            author = "Unknown Creator"
+            pass
 
     # Get transcript
     try:
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+        transcript_list = YouTubeTranscriptApi().fetch(video_id)
         transcript = " ".join([t["text"] for t in transcript_list])
-        duration = int(transcript_list[-1]["start"] + transcript_list[-1].get("duration", 0)) if transcript_list else 0
+        if duration == 0 and transcript_list:
+            duration = int(transcript_list[-1]["start"] + transcript_list[-1].get("duration", 0))
     except Exception as e:
         transcript = f"[Transcript unavailable: {str(e)}]"
-        duration = 0
+
+    engagement_rate = round((likes + comments) / views * 100, 4) if views > 0 else 0.0
 
     return {
         "platform": "youtube",
@@ -64,20 +84,19 @@ async def fetch_youtube_metadata(video_id: str) -> dict:
         "url": f"https://www.youtube.com/watch?v={video_id}",
         "title": title,
         "creator": author,
-        "follower_count": "N/A (YouTube oembed)",
-        "views": 0,
-        "likes": 0,
-        "comments": 0,
-        "engagement_rate": 0.0,
+        "follower_count": "N/A",
+        "views": views,
+        "likes": likes,
+        "comments": comments,
+        "engagement_rate": engagement_rate,
         "hashtags": [],
-        "upload_date": "N/A",
+        "upload_date": upload_date,
         "duration": duration,
         "transcript": transcript,
-        "note": "Metadata limited: YouTube Data API v3 key required for full stats"
+        "note": "Stats via yt-dlp. Subscriber count needs YouTube Data API v3."
     }
 
 async def fetch_instagram_metadata(url: str) -> dict:
-    """Fetch Instagram reel metadata via public endpoints."""
     shortcode = None
     m = re.search(r"(?:reel|p)\/([A-Za-z0-9_-]+)", url)
     if m:
@@ -97,11 +116,10 @@ async def fetch_instagram_metadata(url: str) -> dict:
         "hashtags": [],
         "upload_date": "N/A",
         "duration": 0,
-        "transcript": "[Instagram transcript: Audio download + Whisper transcription required in production. yt-dlp can extract audio from Reels for Whisper processing.]",
+        "transcript": "[Instagram transcript requires yt-dlp + Whisper audio transcription in production]",
         "note": "Instagram API requires app review. yt-dlp + Whisper handles transcripts at scale."
     }
 
-    # Try to get some public data via yt-dlp info extraction
     try:
         import subprocess, json as _json
         result = subprocess.run(
@@ -124,10 +142,8 @@ async def fetch_instagram_metadata(url: str) -> dict:
             meta["hashtags"] = list(set(meta["hashtags"]))[:10]
             if meta["views"] > 0 and (meta["likes"] + meta["comments"]) > 0:
                 meta["engagement_rate"] = round((meta["likes"] + meta["comments"]) / meta["views"] * 100, 4)
-            # Try subtitle/caption extraction
-            desc_text = info.get("description", "")
-            if desc_text:
-                meta["transcript"] = f"[Description/Caption]: {desc_text}"
+            if desc:
+                meta["transcript"] = f"[Caption]: {desc}"
     except Exception as e:
         meta["note"] += f" | yt-dlp error: {str(e)}"
 
@@ -166,7 +182,6 @@ def chunk_and_embed(transcript: str, metadata: dict, video_label: str, collectio
         "comments": str(metadata.get("comments", 0)),
     } for i in range(len(chunks))]
 
-    # Upsert in batches of 50
     batch_size = 50
     for i in range(0, len(chunks), batch_size):
         collection.upsert(
@@ -185,7 +200,5 @@ async def ingest_video(url: str, video_id: str, platform: str, session_id: str =
 
     meta = compute_engagement(meta)
     meta["label"] = video_id
-
-    # We defer embedding to the session-level call
     meta["_transcript_for_embed"] = meta.get("transcript", "")
     return meta

@@ -115,7 +115,7 @@ export default function ChatPanel({ sessionId, videoA, videoB }) {
   return (
     <div className="chat-panel">
       <div className="chat-header">
-        <span className="chat-title">// RAG CHAT</span>
+        <span className="chat-title"><span className="chat-title-dot"></span>RAG Chat</span>
         <span className="chat-meta">memory enabled · streaming · source citations</span>
       </div>
 

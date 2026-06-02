@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
 import './URLInput.css';
 
-const SAMPLE_YT = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-const SAMPLE_IG = 'https://www.instagram.com/reel/C_example123/';
-
-export default function URLInput({ onSubmit, error }) {
-  const [yt, setYt] = useState('');
-  const [ig, setIg] = useState('');
+export default function URLInput({ onSubmit, error, initialYt = '', initialIg = '' }) {
+  const [yt, setYt] = useState(initialYt);
+  const [ig, setIg] = useState(initialIg);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -19,24 +16,20 @@ export default function URLInput({ onSubmit, error }) {
 
   return (
     <div className="url-input-page">
-      <div className="url-input-hero">
-        <div className="hero-tag">// RAG-POWERED VIDEO ANALYTICS</div>
-        <h1 className="hero-title">
-          Compare Any Two<br />
-          <span className="hero-accent">Social Videos</span>
-        </h1>
+      <div className="url-hero">
+        <div className="hero-pill">RAG-powered · Free · Open source</div>
+        <h1 className="hero-title">Compare any two videos.<br /><span>Ask anything about them.</span></h1>
         <p className="hero-sub">
-          Paste a YouTube and Instagram Reel URL. We'll pull transcripts,
-          compute engagement, embed everything into a vector DB, and let you
-          ask anything.
+          Drop a YouTube and Instagram Reel URL. We fetch transcripts, compute engagement
+          metrics, embed everything into a vector DB, and let you chat with the data in real time.
         </p>
       </div>
 
       <form className="url-form" onSubmit={handleSubmit}>
         <div className="url-field">
           <label className="url-label">
-            <span className="label-tag">[A]</span>
-            <span className="label-platform">YouTube URL</span>
+            <span className="label-badge label-a">A</span>
+            YouTube URL
           </label>
           <input
             className="url-input"
@@ -48,16 +41,16 @@ export default function URLInput({ onSubmit, error }) {
           />
         </div>
 
-        <div className="url-connector">
-          <div className="connector-line" />
-          <span className="connector-vs">VS</span>
-          <div className="connector-line" />
+        <div className="url-vs">
+          <div className="vs-line" />
+          <span className="vs-text">VS</span>
+          <div className="vs-line" />
         </div>
 
         <div className="url-field">
           <label className="url-label">
-            <span className="label-tag">[B]</span>
-            <span className="label-platform">Instagram Reel URL</span>
+            <span className="label-badge label-b">B</span>
+            Instagram Reel URL
           </label>
           <input
             className="url-input"
@@ -73,19 +66,19 @@ export default function URLInput({ onSubmit, error }) {
 
         <button className="submit-btn" type="submit" disabled={submitting || !yt || !ig}>
           {submitting ? (
-            <span>Processing<span className="dots">...</span></span>
+            <span className="btn-loading"><span className="btn-spinner" /> Analyzing...</span>
           ) : (
-            <span>Analyze Videos →</span>
+            'Analyze videos →'
           )}
         </button>
       </form>
 
       <div className="feature-grid">
         {[
-          { icon: '◈', label: 'Transcript RAG', desc: 'Chunked & embedded in ChromaDB' },
-          { icon: '◉', label: 'Streaming Chat', desc: 'Token-by-token streamed responses' },
-          { icon: '◎', label: 'Source Citations', desc: 'Every answer cites video + chunk' },
-          { icon: '◐', label: 'Memory', desc: 'Full conversation context retained' },
+          { icon: '⬡', label: 'Transcript RAG', desc: 'Chunked & embedded in ChromaDB with cosine similarity search' },
+          { icon: '⟳', label: 'Streaming chat', desc: 'Token-by-token responses via Groq + Llama 3' },
+          { icon: '◈', label: 'Source citations', desc: 'Every answer cites the exact video and chunk' },
+          { icon: '◎', label: 'Conversation memory', desc: 'Full chat history kept in context across turns' },
         ].map(f => (
           <div key={f.label} className="feature-card">
             <span className="feature-icon">{f.icon}</span>

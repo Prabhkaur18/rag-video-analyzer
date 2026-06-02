@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './VideoCards.css';
 
 function StatPill({ label, value, highlight }) {
@@ -10,7 +10,7 @@ function StatPill({ label, value, highlight }) {
   );
 }
 
-function VideoCard({ meta, label, color }) {
+function VideoCard({ meta, label }) {
   const views = Number(meta?.views || 0);
   const likes = Number(meta?.likes || 0);
   const comments = Number(meta?.comments || 0);
@@ -19,45 +19,34 @@ function VideoCard({ meta, label, color }) {
 
   const fmt = (n) => n >= 1000000
     ? (n / 1000000).toFixed(1) + 'M'
-    : n >= 1000
-      ? (n / 1000).toFixed(1) + 'K'
-      : String(n);
+    : n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n);
 
-  const fmtDur = (s) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${String(sec).padStart(2, '0')}`;
-  };
-
-  const hashtags = meta?.hashtags || [];
+  const fmtDur = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
-    <div className="video-card" style={{ '--card-color': color }}>
+    <div className="video-card">
       <div className="card-header">
-        <div className="card-label">[{label}]</div>
+        <div className={`card-label ${label === "B" ? "card-label-b" : ""}`}>{label}</div>
         <div className="card-platform">{meta?.platform?.toUpperCase() || '?'}</div>
       </div>
 
-      {meta?.url && (
-        <div className="card-embed">
-          {meta.platform === 'youtube' && meta.video_id_internal ? (
-            <iframe
-              src={`https://www.youtube.com/embed/${meta.video_id_internal}`}
-              title="Video A"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          ) : (
-            <div className="card-embed-placeholder">
-              <span className="embed-icon">▶</span>
-              <a href={meta.url} target="_blank" rel="noreferrer" className="embed-link">
-                View on {meta?.platform || 'Platform'} ↗
-              </a>
-            </div>
-          )}
-        </div>
-      )}
+      <div className="card-embed">
+        {meta?.platform === 'youtube' && meta?.video_id_internal ? (
+          <iframe
+            src={`https://www.youtube.com/embed/${meta.video_id_internal}`}
+            title={`Video ${label}`}
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        ) : (
+          <div className="card-embed-placeholder">
+            <a href={meta?.url} target="_blank" rel="noreferrer" className="embed-link">
+              View on {meta?.platform || 'platform'} ↗
+            </a>
+          </div>
+        )}
+      </div>
 
       <div className="card-title">{meta?.title || 'Untitled'}</div>
       <div className="card-creator">by {meta?.creator || 'Unknown'}</div>
@@ -71,26 +60,70 @@ function VideoCard({ meta, label, color }) {
         <StatPill label="Followers" value={meta?.follower_count || 'N/A'} />
       </div>
 
-      {hashtags.length > 0 && (
+      {meta?.hashtags?.length > 0 && (
         <div className="card-hashtags">
-          {hashtags.slice(0, 6).map(h => (
+          {meta.hashtags.slice(0, 6).map(h => (
             <span key={h} className="hashtag">{h.startsWith('#') ? h : `#${h}`}</span>
           ))}
         </div>
       )}
 
-      {meta?.note && (
-        <div className="card-note">{meta.note}</div>
-      )}
+      {meta?.note && <div className="card-note">{meta.note}</div>}
     </div>
   );
 }
 
-export default function VideoCards({ videoA, videoB }) {
+export default function VideoCards({ videoA, videoB, urls, onReload }) {
+  const [editing, setEditing] = useState(false);
+  const [newYt, setNewYt] = useState(urls?.yt || '');
+  const [newIg, setNewIg] = useState(urls?.ig || '');
+  const [loading, setLoading] = useState(false);
+
+  const handleReload = async () => {
+    if (!newYt.trim() || !newIg.trim()) return;
+    setLoading(true);
+    await onReload(newYt.trim(), newIg.trim());
+    setEditing(false);
+    setLoading(false);
+  };
+
   return (
-    <div className="video-cards">
-      <VideoCard meta={videoA} label="A" color="var(--accent2)" />
-      <VideoCard meta={videoB} label="B" color="var(--accent3)" />
+    <div className="video-cards-wrapper">
+      <div className="video-cards">
+        <VideoCard meta={videoA} label="A" />
+        <VideoCard meta={videoB} label="B" />
+      </div>
+
+      <div className="url-edit-bar">
+        {!editing ? (
+          <button className="edit-urls-btn" onClick={() => setEditing(true)}>
+            ✎ Change video URLs
+          </button>
+        ) : (
+          <div className="url-edit-form">
+            <input
+              className="url-edit-input"
+              value={newYt}
+              onChange={e => setNewYt(e.target.value)}
+              placeholder="YouTube URL"
+            />
+            <input
+              className="url-edit-input"
+              value={newIg}
+              onChange={e => setNewIg(e.target.value)}
+              placeholder="Instagram Reel URL"
+            />
+            <div className="url-edit-actions">
+              <button className="url-reload-btn" onClick={handleReload} disabled={loading}>
+                {loading ? 'Loading...' : 'Reload videos →'}
+              </button>
+              <button className="url-cancel-btn" onClick={() => setEditing(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
