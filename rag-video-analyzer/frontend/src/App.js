@@ -25,7 +25,7 @@ export default function App() {
     setUrls({ yt: youtubeUrl, ig: instagramUrl });
     setLoadingMsg('Fetching transcripts and metadata...');
     try {
-      const res = await fetch('/ingest', {
+      const res = await fetch('https://rag-video-analyzer-7euf.onrender.com/ingest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ youtube_url: youtubeUrl, instagram_url: instagramUrl, session_id: SESSION_ID })
@@ -46,14 +46,14 @@ export default function App() {
   }, []);
 
   const handleReset = useCallback(async () => {
-    await fetch(`/session/${SESSION_ID}`, { method: 'DELETE' });
+    await fetch(`https://rag-video-analyzer-7euf.onrender.com/session/${SESSION_ID}`, { method: 'DELETE' });
     setPhase('input');
     setVideoData({ a: null, b: null });
     setError(null);
   }, []);
 
   const handleReload = useCallback(async (newYt, newIg) => {
-    await fetch(`/session/${SESSION_ID}`, { method: 'DELETE' });
+    await fetch(`https://rag-video-analyzer-7euf.onrender.com/session/${SESSION_ID}`, { method: 'DELETE' });
     await handleIngest(newYt, newIg);
   }, [handleIngest]);
 

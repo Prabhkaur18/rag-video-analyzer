@@ -56,7 +56,7 @@ export default function ChatPanel({ sessionId, videoA, videoB }) {
     setMessages(prev => [...prev, assistantMsg]);
 
     try {
-      const res = await fetch('/chat', {
+      const res = await fetch('https://rag-video-analyzer-7euf.onrender.com/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: sessionId, message: text })
